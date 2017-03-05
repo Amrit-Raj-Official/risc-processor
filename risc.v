@@ -27,6 +27,16 @@ module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum, outp
     assign carry = cin[n];
 endmodule
 
+module twoscomp#(parameter n = 1)(input [n-1:0]x, output [n-1:0]y);
+    wire [n-1:0] ones;
+    wire [n-1:0] one;
+    wire [n-1:0] inverted;
+    assign one = 1'b1;
+    assign ones = {n{1'b1}};
+    xor_str #(n) n_xor(inverted, x, ones);
+    full_adder #(n) adder(inverted, one, y, carry);
+endmodule
+
 module and_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B);
     and and1[n - 1:0](out, A, B);
 endmodule
