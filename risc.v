@@ -4,6 +4,23 @@
 
 // Structural modules
 
+//slt
+module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
+        wire[n-1:0] sum;
+        wire carry;
+        subt #(n) subtrac(x,y,sum);
+        assign r3 = sum[n-1]; 
+endmodule
+
+
+//subtractor
+module subt#(parameter n = 1)(input [n-1:0] x, y, output [n-1:0] diff);
+        wire carry;
+        wire [n-1:0]ytwos;
+        twoscomp #(n) tc(y,ytwos);
+        full_adder #(n) adder(x, ytwos,diff,carry);
+endmodule
+
 module add_str(input x, y, cin, output s, cout);
     wire s1,c1,c2,c3;
     xor(s1, x, y);
