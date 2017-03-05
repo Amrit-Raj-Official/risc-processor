@@ -4,6 +4,29 @@
 
 // Structural modules
 
+module add_str(input x, y, cin, output s, cout);
+    wire s1,c1,c2,c3;
+    xor(s1, x, y);
+    xor(s, cin, s1);
+    and(c1, x, y);
+    and(c2, y, cin);
+    and(c3, x, cin);
+    or(cout, c1, c2, c3);
+endmodule
+
+module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum, output carry);
+    wire [n:0]cin;
+    assign cin[0]= 1'b0;
+    genvar i;
+    generate
+        for (i = 0; i<n;i=i+1)
+        begin
+            add_str fa(a[i],b[i],cin[i],sum[i],cin[i+1]);
+        end
+    endgenerate
+    assign carry = cin[n];
+endmodule
+
 module and_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B);
     and and1[n - 1:0](out, A, B);
 endmodule
