@@ -12,13 +12,13 @@ module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
     assign r3 = sum[n-1];
 endmodule
 
-//subtractor
+/* Subtractor, no longer needed
 module subt#(parameter n = 1)(input [n-1:0] x, y, output [n-1:0] diff,output V);
         wire carry;
         wire [n-1:0]ytwos;
         twoscomp #(n) tc(y,ytwos);
         full_adder #(n) adder(x, ytwos,diff,carry,V);
-endmodule
+endmodule*/
 
 module add_str(input x, y, cin, output s, cout);
     wire s1,c1,c2,c3;
@@ -30,17 +30,27 @@ module add_str(input x, y, cin, output s, cout);
     or(cout, c1, c2, c3);
 endmodule
 
-module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum, output carry, V);
+module not_str #(parameter n =1 )(output [n-1:0] out, input [n-1:0] A);
+    not not1[n-1:0](out,A);
+endmodule
+
+module full_adder#(parameter n = 1)(input [n-1:0] a, input [n-1:0] b, input carryin, output [n-1:0] sum, output carry, V);
     wire [n:0]cin;
-    assign cin[0]= 1'b0;
+    wire[n-1:0] b2;
+    wire [n-1:0]invertb;
+    not_str #(n) n1(invertb, b);
+    mux_str #(n) mux1(b2, b, invertb, carryin);
+    assign cin[0]= carryin;
     genvar i;
     generate
         for (i = 0; i<n;i=i+1)
         begin
-            add_str fa(a[i],b[i],cin[i],sum[i],cin[i+1]);
+            add_str fa(a[i],b2[i],cin[i],sum[i],cin[i+1]);
         end
     endgenerate
-    assign carry = cin[n];
+    wire cin_invert;
+    not(cin_invert, cin[n]);
+    mux_str #(1) mux2(carry, cin[n],cin_invert,carryin); 
     xor(V, cin[n], cin[n-1]);
 endmodule
 
