@@ -88,6 +88,26 @@ input [n - 1:0] A, B, input sel);
     or_str #(n) or1(out, s1, s2);
 endmodule
 
+module mux4_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B,
+C, D, input [1:0] sel);
+    wire [n - 1:0] w1, w2;
+    mux_str #(n) mux1(w1, A, B, sel[0]);
+    mux_str #(n) mux2(w2, C, D, sel[0]);
+    mux_str #(n) mux3(out, w1, w2, sel[1]);
+endmodule
+
+module mux8_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B,
+C, D, E, F, G, H, input [2:0] sel);
+    wire [n - 1:0] w1, w2, w3, w4, w5, w6;
+    mux_str #(n) mux1(w1, A, B, sel[0]);
+    mux_str #(n) mux2(w2, C, D, sel[0]);
+    mux_str #(n) mux3(w5, w1, w2, sel[1]);
+    mux_str #(n) mux4(w3, E, F, sel[0]);
+    mux_str #(n) mux5(w4, G, H, sel[0]);
+    mux_str #(n) mux6(w6, w1, w2, sel[1]);
+    mux_str #(n) mux7(out, w5, w6, sel[2]);
+endmodule
+
 //------------------------------------------------------------------------------
 
 // IF: Instruction Fetch
@@ -179,7 +199,7 @@ input [15:0] if_inst, if_data, input [5:0] if_pc, input clk);
     end
 endmodule
 
-module controller(output reg [3:0] ALUControl, output reg ALUSrc, Branch,
+module controller(output reg [2:0] ALUControl, output reg ALUSrc, Branch,
 MemRead, MemtoReg, MemWrite, RegDst, RegWrite, input [3:0] opcode);
     initial begin
         ALUControl <= 0;
@@ -288,7 +308,7 @@ MemRead, MemtoReg, MemWrite, RegDst, RegWrite, input [3:0] opcode);
 endmodule
 
 module reg_file(output [15:0] A, B, reg1, reg2, reg3, input [15:0] C,
-input [3:0] Aaddr, Baddr, Caddr, input load, clear);
+input [3:0] Aaddr, Baddr, Caddr, input load, clear, clk);
     integer i;
     reg [15:0] register [0:15];
     assign A = register[Aaddr];
@@ -298,7 +318,7 @@ input [3:0] Aaddr, Baddr, Caddr, input load, clear);
     assign reg3 = register[3];
     initial for (i = 0; i < 16; i = i + 1)
         register[i] <= 0;
-    always @(*) begin
+    always @(posedge clk) begin
         if (!clear)
             for (i = 0; i < 16; i = i + 1)
                 register[i] <= 0;
@@ -313,10 +333,10 @@ endmodule
 // EX: Execute
 
 module ID_EX(output reg [15:0] ex_inst, ex_data1_out, ex_data2_out,
-output reg [5:0] ex_pc, output reg [3:0] ex_ALUControl, output reg ex_ALUSrc,
+output reg [5:0] ex_pc, output reg [2:0] ex_ALUControl, output reg ex_ALUSrc,
 ex_Branch, ex_MemRead,ex_MemtoReg, ex_MemWrite, ex_RegDst, ex_RegWrite,
 input [15:0] id_inst,id_data1_out, id_data2_out, input [5:0] id_pc,
-input [3:0] id_ALUControl, input id_ALUSrc, id_Branch,id_MemRead, id_MemtoReg,
+input [2:0] id_ALUControl, input id_ALUSrc, id_Branch,id_MemRead, id_MemtoReg,
 id_MemWrite, id_RegDst, id_RegWrite, input clk);
     initial begin
         ex_inst <= 16'hFFFF;
@@ -348,8 +368,8 @@ id_MemWrite, id_RegDst, id_RegWrite, input clk);
     end
 endmodule
 
-module alu(output reg [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
-    input [15:0] X, Y, input [3:0] opcode);
+module alu(output [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
+    input [15:0] X, Y, input [2:0] opcode);
     wire [15:0] add_result;
     wire [15:0] sub_result;
     wire [15:0] and_result;
@@ -361,23 +381,25 @@ module alu(output reg [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     and_str #(16) alu_and(and_result, X, Y);
     or_str #(16) alu_or(or_result, X, Y);
     nslt #(16) alu_slt(X, Y, slt_result);
+    mux8_str #(16) mux(out, add_result, sub_result, and_result, or_result,
+        slt_result, sub_result, 16'h0000, 16'h0000, opcode);
 
     assign lt = X < Y;
     assign eq = X == Y;
     assign gt = X > Y;
     assign Cin = 0;
     assign zero = (out == 0) ? 1 : 0;
-    always @(*) begin
-        case (opcode)
-            3'b000: out <= add_result; // unsigned addition
-            3'b001: out <= sub_result; // signed addition/subtraction
-            3'b010: out <= and_result; // "and"
-            3'b011: out <= or_result; // "or"
-            3'b100: out <= slt_result; // set on less than
-            3'b101: out <= sub_result; // branch if not equal
-            default: out <= 0;
-        endcase
-    end
+    // always @(*) begin
+    //     case (opcode)
+    //         3'b000: out <= add_result; // unsigned addition
+    //         3'b001: out <= sub_result; // signed addition/subtraction
+    //         3'b010: out <= and_result; // "and"
+    //         3'b011: out <= or_result; // "or"
+    //         3'b100: out <= slt_result; // set on less than
+    //         3'b101: out <= sub_result; // branch if not equal
+    //         default: out <= 0;
+    //     endcase
+    // end
 endmodule
 
 //------------------------------------------------------------------------------
@@ -473,7 +495,7 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
 
     wire [15:0] wb_write_data;
 
-    wire [3:0] id_ALUControl, ex_ALUControl;
+    wire [2:0] id_ALUControl, ex_ALUControl;
     wire id_ALUSrc, ex_ALUSrc;
     wire id_Branch, ex_Branch, mem_Branch;
     wire id_MemRead, ex_MemRead, mem_MemRead;
@@ -494,9 +516,9 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
     wire carry;
     wire v;
 
-    assign R1 = wb_write_data;
-    assign R2 = id_data1_out;
-    assign R3 = id_data2_out;
+    assign R1 = id_reg1;
+    assign R2 = id_reg2;
+    assign R3 = id_reg3;
     assign PC = if_pc;
 
     // IF
@@ -522,7 +544,7 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
             id_inst[15:12]);
         reg_file id_reg_file(id_data1_out, id_data2_out, id_reg1, id_reg2,
             id_reg3, wb_write_data, id_inst[11:8], id_inst[7:4], wb_write_addr,
-            wb_RegWrite, 1'b1);
+            wb_RegWrite, 1'b1, clk);
 
     // EX
         ID_EX id_ex(ex_inst, ex_data1_out, ex_data2_out, ex_pc, ex_ALUControl,
