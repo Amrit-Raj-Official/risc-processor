@@ -8,7 +8,8 @@
 module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
     wire[n-1:0] sum;
     wire carry;
-    subt #(n) subtrac(x,y,sum);
+    wire V;
+    full_adder #(n) subtrac(x,y,1'b1,sum,carry,V);
     assign r3 = sum[n-1];
 endmodule
 
@@ -50,10 +51,9 @@ module full_adder#(parameter n = 1)(input [n-1:0] a, input [n-1:0] b, input carr
     endgenerate
     wire cin_invert;
     not(cin_invert, cin[n]);
-    mux_str #(1) mux2(carry, cin[n],cin_invert,carryin); 
+    mux_str #(1) mux2(carry, cin[n],cin_invert,carryin);
     xor(V, cin[n], cin[n-1]);
 endmodule
-
 
 module twoscomp#(parameter n = 1)(input [n-1:0]x, output [n-1:0]y);
     wire [n-1:0] ones;
@@ -62,7 +62,7 @@ module twoscomp#(parameter n = 1)(input [n-1:0]x, output [n-1:0]y);
     assign one = 1'b1;
     assign ones = {n{1'b1}};
     xor_str #(n) n_xor(inverted, x, ones);
-    full_adder #(n) adder(inverted, one, y, carry);
+    full_adder #(n) adder(inverted, one, 1'b0, y, carry, V);
 endmodule
 
 module and_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B);
@@ -90,15 +90,6 @@ endmodule
 
 //------------------------------------------------------------------------------
 
-// Generic modules (non-structural)
-
-module add_gen #(parameter n = 4) (output [n - 1:0] out,
-input signed [n - 1:0] A, B);
-    assign out = A + B;
-endmodule
-
-//------------------------------------------------------------------------------
-
 // IF: Instruction Fetch
 
 module PC(output reg [5:0] out, input [5:0] in, input clk);
@@ -112,23 +103,22 @@ module add_PC (output [5:0] out, input [5:0] A);
 endmodule
 
 module memory(output [15:0] data_out, input [15:0] Wdata,
-data_addr, input [5:0] inst_addr, input read, load, stall);
+input [5:0] data_addr, input read, load, stall);
     reg [15:0] inst_mem [0:63];
     reg [15:0] data_mem [0:15];
     initial begin
         $readmemh("inst.dat", inst_mem);
         $readmemh("mem.dat", data_mem);
     end
-    assign data_out = (stall) ? data_mem[data_addr[3:0]] : inst_mem[inst_addr];
+    assign data_out = (stall) ? data_mem[data_addr] : inst_mem[data_addr];
     always @(*) begin
-        if (load)
-            data_mem[data_addr[3:0]] <= Wdata;
+        if (load & stall)
+            data_mem[data_addr] <= Wdata;
     end
 endmodule
 
 module hazard(output stall1, output reg stall2, input [3:0] opcode, input clk);
     reg [1:0] state;
-    reg flag;
     assign stall1 = (state > 0) ? 1 : 0;
     initial begin
         state <= 0;
@@ -358,8 +348,8 @@ module alu(output reg [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     wire [15:0] or_result;
     wire [15:0] slt_result;
 
-    full_adder #(16) alu_full_adder(X, Y, add_result, Cout);
-    subt #(16) alu_subt(X, Y, sub_result);
+    full_adder #(16) alu_full_adder(X, Y, 1'b0, add_result, Cout, V);
+    full_adder #(16) alu_full_adder_sub(X, Y, 1'b1, sub_result, Cout, V);
     and_str #(16) alu_and(and_result, X, Y);
     or_str #(16) alu_or(or_result, X, Y);
     nslt #(16) alu_slt(X, Y, slt_result);
@@ -368,7 +358,7 @@ module alu(output reg [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     assign eq = X == Y;
     assign gt = X > Y;
     assign Cin = 0;
-    assign V = 0;
+    // assign V = 0;
     assign zero = (out == 0) ? 1 : 0;
     always @(*) begin
         case (opcode)
@@ -455,6 +445,7 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     wire [5:0] if_muxtopc2;
     wire [5:0] if_pc_next;
     wire [5:0] if_pc, id_pc, ex_pc;
+    wire [5:0] if_mem_addr;
     wire if_stall1;
     wire if_stall2;
 
@@ -492,10 +483,12 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     wire ex_alu_v;
     wire ex_alu_zero, mem_alu_zero;
     wire reg_clear;
+    wire carry;
+    wire v;
 
     assign R1 = id_reg1;
-    assign R2 = if_data;
-    assign R3 = if_inst_mux;
+    assign R2 = id_reg2;
+    assign R3 = id_reg3;
     assign PC = if_pc;
 
     // IF
@@ -504,12 +497,14 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
         mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, mem_branch_addr,
             mem_PCSrc);
         add_PC if_add_PC(if_pc_next, if_pc);
-        memory if_memory(if_data, mem_data2_out,
-            ex_alu_out, if_pc, mem_MemRead, mem_MemWrite, if_stall2);
+        memory if_memory(if_data, mem_data2_out, if_mem_addr, mem_MemRead,
+            mem_MemWrite, if_stall2);
         hazard if_hazard(if_stall1, if_stall2, if_data[15:12], clk);
         mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall1);
         mux_str #(16) if_mux3(if_inst_mux, if_data, 16'hDDDD,
             if_stall1 | mem_PCSrc);
+        mux_str #(6) if_mux4(if_mem_addr, if_pc, {2'b00, ex_alu_out[3:0]},
+            if_stall2);
 
     // ID
         IF_ID if_id(id_inst, id_data, id_pc, if_inst_mux, if_data, if_pc, clk);
@@ -528,8 +523,8 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
             id_ALUControl, id_ALUSrc, id_Branch, id_MemRead, id_MemtoReg,
             id_MemWrite, id_RegDst, id_RegWrite, clk);
 
-        add_gen #(6) ex_add(ex_branch_addr, ex_pc,
-            {{2{ex_inst[3]}}, ex_inst[3:0]});
+        full_adder #(6) ex_add(ex_pc, {{2{ex_inst[3]}}, ex_inst[3:0]}, 1'b0,
+            ex_branch_addr, carry, v);
         mux_str #(16) ex_mux1(ex_muxtoalu, ex_data2_out, ex_inst[15:0],
             ex_ALUSrc);
         alu ex_alu(ex_alu_out, ex_alu_cin, ex_alu_cout, ex_alu_lt, ex_alu_eq,
@@ -568,8 +563,8 @@ module MIPS_test();
     always #5 clk = ~clk;
     initial begin
         $display("time    clk    PC    R1    R2    R3");
-        $monitor("%4d    %3d    %2d    %2d    %2h    %2h", $time, clk, PC, R1, R2, R3);
+        $monitor("%4d    %3d    %2d    %2d    %2d    %2d", $time, clk, PC, R1, R2, R3);
         clk = 0;
-        #1000 $finish;
+        wait (PC == 10) $finish;
     end
 endmodule
