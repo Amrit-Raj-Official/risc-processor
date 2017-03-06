@@ -13,11 +13,11 @@ module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
 endmodule
 
 //subtractor
-module subt#(parameter n = 1)(input [n-1:0] x, y, output [n-1:0] diff);
-    wire carry;
-    wire [n-1:0]ytwos;
-    twoscomp #(n) tc(y,ytwos);
-    full_adder #(n) adder(x, ytwos,diff,carry);
+module subt#(parameter n = 1)(input [n-1:0] x, y, output [n-1:0] diff,output V);
+        wire carry;
+        wire [n-1:0]ytwos;
+        twoscomp #(n) tc(y,ytwos);
+        full_adder #(n) adder(x, ytwos,diff,carry,V);
 endmodule
 
 module add_str(input x, y, cin, output s, cout);
@@ -30,8 +30,7 @@ module add_str(input x, y, cin, output s, cout);
     or(cout, c1, c2, c3);
 endmodule
 
-module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum,
-output carry);
+module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum, output carry, V);
     wire [n:0]cin;
     assign cin[0]= 1'b0;
     genvar i;
@@ -42,7 +41,9 @@ output carry);
         end
     endgenerate
     assign carry = cin[n];
+    xor(V, cin[n], cin[n-1]);
 endmodule
+
 
 module twoscomp#(parameter n = 1)(input [n-1:0]x, output [n-1:0]y);
     wire [n-1:0] ones;
