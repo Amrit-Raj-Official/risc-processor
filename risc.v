@@ -100,27 +100,29 @@ module add_PC (output [5:0] out, input [5:0] A);
     assign out = A + 1;
 endmodule
 
-module memory(output [15:0] data_out, Rdata, inst, input [15:0] Wdata,
-data_addr, input [5:0] inst_addr, input read, load);
+module memory(output [15:0] data_out, input [15:0] Wdata,
+data_addr, input [5:0] inst_addr, input read, load, stall);
     reg [15:0] inst_mem [0:63];
     reg [15:0] data_mem [0:15];
     initial begin
         $readmemh("inst.dat", inst_mem);
         $readmemh("mem.dat", data_mem);
     end
-    assign inst = inst_mem[inst_addr];
-    assign Rdata = (read) ? data_mem[data_addr[3:0]] : inst_mem[inst_addr];
-    assign data_out = (read) ? data_mem[data_addr[3:0]] : inst_mem[inst_addr];
+    assign data_out = (stall) ? data_mem[data_addr[3:0]] : inst_mem[inst_addr];
     always @(*) begin
         if (load)
             data_mem[data_addr[3:0]] <= Wdata;
     end
 endmodule
 
-module hazard(output stall, input [3:0] opcode, input clk);
+module hazard(output stall1, output reg stall2, input [3:0] opcode, input clk);
     reg [1:0] state;
-    assign stall = (state > 0) ? 1 : 0;
-    initial state <= 0;
+    reg flag;
+    assign stall1 = (state > 0) ? 1 : 0;
+    initial begin
+        state <= 0;
+        stall2 <= 0;
+    end
     always @(posedge clk) begin
         if (state == 0) begin
             case (opcode)
@@ -135,8 +137,14 @@ module hazard(output stall, input [3:0] opcode, input clk);
             endcase
         end else begin
             case (state)
-                2'b01: state <= 2'b00;
-                2'b10: state <= 2'b01;
+                2'b01: begin
+                    state <= 2'b00;
+                    stall2 <= 0;
+                end
+                2'b10: begin
+                    state <= 2'b01;
+                    stall2 <= 1;
+                end
                 2'b11: state <= 2'b10;
                 default: state <= 2'b00;
             endcase
@@ -148,14 +156,16 @@ endmodule
 
 // ID: Instruction Decode
 
-module IF_ID(output reg [15:0] id_inst, output reg [5:0] id_pc,
-input [15:0] if_inst, input [5:0] if_pc, input clk);
+module IF_ID(output reg [15:0] id_inst, id_data, output reg [5:0] id_pc,
+input [15:0] if_inst, if_data, input [5:0] if_pc, input clk);
     initial begin
         id_inst = 16'hFFFF;
+        id_data = 16'hFFFF;
         id_pc = 0;
     end
     always @(posedge clk) begin
         id_inst <= if_inst;
+        id_data <= if_data;
         id_pc <= if_pc;
     end
 endmodule
@@ -428,12 +438,14 @@ endmodule
 
 module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     wire [15:0] if_inst, id_inst, ex_inst;
+    wire [15:0] if_data, id_data;
     wire [15:0] if_inst_mux;
     wire [5:0] if_muxtopc1;
     wire [5:0] if_muxtopc2;
     wire [5:0] if_pc_next;
     wire [5:0] if_pc, id_pc, ex_pc;
-    wire if_stall;
+    wire if_stall1;
+    wire if_stall2;
 
     wire [15:0] id_reg1;
     wire [15:0] id_reg2;
@@ -470,8 +482,8 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     wire ex_alu_zero, mem_alu_zero;
     wire reg_clear;
 
-    assign R1 = id_reg3;
-    assign R2 = if_stall;
+    assign R1 = id_reg1;
+    assign R2 = if_data;
     assign R3 = if_inst_mux;
     assign PC = if_pc;
 
@@ -481,15 +493,15 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
         mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, mem_branch_addr,
             mem_PCSrc);
         add_PC if_add_PC(if_pc_next, if_pc);
-        memory if_memory(mem_temp, mem_data_out, if_inst, mem_data2_out,
-            mem_alu_out, if_pc, mem_MemRead, mem_MemWrite);
-        hazard if_hazard(if_stall, if_inst[15:12], clk);
-        mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall);
-        mux_str #(16) if_mux3(if_inst_mux, if_inst, 16'hDDDD,
-            if_stall | mem_PCSrc);
+        memory if_memory(if_data, mem_data2_out,
+            ex_alu_out, if_pc, mem_MemRead, mem_MemWrite, if_stall2);
+        hazard if_hazard(if_stall1, if_stall2, if_data[15:12], clk);
+        mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall1);
+        mux_str #(16) if_mux3(if_inst_mux, if_data, 16'hDDDD,
+            if_stall1 | mem_PCSrc);
 
     // ID
-        IF_ID if_id(id_inst, id_pc, if_inst_mux, if_pc, clk);
+        IF_ID if_id(id_inst, id_data, id_pc, if_inst_mux, if_data, if_pc, clk);
 
         controller id_controller(id_ALUControl, id_ALUSrc, id_Branch,
             id_MemRead, id_MemtoReg, id_MemWrite, id_RegDst, id_RegWrite,
@@ -526,7 +538,7 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
 
     // WB
         MEM_WB mem_wb(wb_data_out, wb_alu_out, wb_write_addr, wb_MemtoReg,
-            wb_RegWrite, mem_data_out, mem_alu_out, mem_write_addr,
+            wb_RegWrite, id_data, mem_alu_out, mem_write_addr,
             mem_MemtoReg, mem_RegWrite, clk);
 
         mux_str #(16) wb_mux(wb_write_data, wb_alu_out, wb_data_out,
@@ -545,7 +557,7 @@ module MIPS_test();
     always #5 clk = ~clk;
     initial begin
         $display("time    clk    PC    R1    R2    R3");
-        $monitor("%4d    %3d    %2d    %2d    %2d    %2h", $time, clk, PC, R1, R2, R3);
+        $monitor("%4d    %3d    %2d    %2d    %2h    %2h", $time, clk, PC, R1, R2, R3);
         clk = 0;
         #1000 $finish;
     end
