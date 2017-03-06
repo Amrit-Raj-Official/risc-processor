@@ -9,7 +9,7 @@ module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
         wire[n-1:0] sum;
         wire carry;
         subt #(n) subtrac(x,y,sum);
-        assign r3 = sum[n-1]; 
+        assign r3 = sum[n-1];
 endmodule
 
 
@@ -126,19 +126,46 @@ data_addr, input [5:0] inst_addr, input read, load);
     end
 endmodule
 
+module hazard(output stall, input [3:0] opcode, input clk);
+    reg [1:0] state;
+    assign stall = (state > 0) ? 1 : 0;
+    initial state <= 0;
+    always @(posedge clk) begin
+        if (state == 0) begin
+            case (opcode)
+                4'hE: state <= 2'b10;
+                4'h2: state <= 2'b10;
+                4'h6: state <= 2'b10;
+                4'h0: state <= 2'b10;
+                4'h1: state <= 2'b10;
+                4'h7: state <= 2'b10;
+                4'h8: state <= 2'b10;
+                default: state <= 2'b00;
+            endcase
+        end else if (clk) begin
+            case (state)
+                2'b01: state <= 2'b00;
+                2'b10: state <= 2'b01;
+                2'b11: state <= 2'b10;
+                default: state <= 2'b00;
+            endcase
+        end
+    end
+endmodule
+
 //------------------------------------------------------------------------------
 
 // ID: Instruction Decode
 
-module IF_ID(output reg [15:0] data_out, output reg [5:0] PC_out,
-input [15:0] data_in, input [5:0] PC_in, input clk);
+module IF_ID(output reg [15:0] id_inst, output reg [5:0] id_pc,
+input [15:0] if_inst, input [5:0] if_pc, input clk);
     initial begin
-        data_out = 0;
-        PC_out = 0;
+        id_inst = 16'hFFFF;
+        id_pc = 0;
     end
     always @(posedge clk) begin
-        data_out <= data_in;
-        PC_out <= PC_in;
+        id_inst <= if_inst;
+        id_pc <= if_pc;
     end
 endmodule
 
@@ -282,7 +309,7 @@ input [15:0] id_inst,id_data1_out, id_data2_out, input [5:0] id_pc,
 input [3:0] id_ALUControl, input id_ALUSrc, id_Branch,id_MemRead, id_MemtoReg,
 id_MemWrite, id_RegDst, id_RegWrite, input clk);
     initial begin
-        ex_inst <= 0;
+        ex_inst <= 16'hFFFF;
         ex_data1_out <= 0;
         ex_data2_out <= 0;
         ex_pc <= 0;
@@ -411,9 +438,12 @@ endmodule
 
 module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     wire [15:0] if_inst, id_inst, ex_inst;
-    wire [5:0] if_muxtopc;
+    wire [15:0] if_inst_mux;
+    wire [5:0] if_muxtopc1;
+    wire [5:0] if_muxtopc2;
     wire [5:0] if_pc_next;
     wire [5:0] if_pc, id_pc, ex_pc;
+    wire if_stall;
 
     wire [15:0] id_reg1;
     wire [15:0] id_reg2;
@@ -450,22 +480,24 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     wire ex_alu_zero, mem_alu_zero;
     wire reg_clear;
 
-    assign R1 = id_reg1;
-    assign R2 = id_reg2;
-    assign R3 = id_reg3;
+    assign R1 = id_reg3;
+    assign R2 = if_stall;
+    assign R3 = if_inst_mux;
     assign PC = if_pc;
 
     // IF
-        PC if_PC(if_pc, if_muxtopc, clk);
+        PC if_PC(if_pc, if_muxtopc2, clk);
 
-        mux_str #(6) if_mux(if_muxtopc, if_pc_next, mem_branch_addr, mem_PCSrc);
+        mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, mem_branch_addr, mem_PCSrc);
         add_PC if_add_PC(if_pc_next, if_pc);
         memory if_memory(mem_temp, mem_data_out, if_inst, mem_data2_out,
             mem_alu_out, if_pc, mem_MemRead, mem_MemWrite);
-
+        hazard if_hazard(if_stall, if_inst[15:12], clk);
+        mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall);
+        mux_str #(16) if_mux3(if_inst_mux, if_inst, 16'hDDDD, if_stall | mem_PCSrc);
 
     // ID
-        IF_ID if_id(id_inst, id_pc, if_inst, if_pc, clk);
+        IF_ID if_id(id_inst, id_pc, if_inst_mux, if_pc, clk);
 
         controller id_controller(id_ALUControl, id_ALUSrc, id_Branch,
             id_MemRead, id_MemtoReg, id_MemWrite, id_RegDst, id_RegWrite,
@@ -521,7 +553,7 @@ module MIPS_test();
     always #5 clk = ~clk;
     initial begin
         $display("time    clk    PC    R1    R2    R3");
-        $monitor("%4d    %3d    %2d    %2d    %2d    %2d", $time, clk, PC, R1, R2, R3);
+        $monitor("%4d    %3d    %2d    %2d    %2d    %2h", $time, clk, PC, R1, R2, R3);
         clk = 0;
         #1000 $finish;
     end
