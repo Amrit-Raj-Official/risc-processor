@@ -6,19 +6,18 @@
 
 //slt
 module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
-        wire[n-1:0] sum;
-        wire carry;
-        subt #(n) subtrac(x,y,sum);
-        assign r3 = sum[n-1];
+    wire[n-1:0] sum;
+    wire carry;
+    subt #(n) subtrac(x,y,sum);
+    assign r3 = sum[n-1];
 endmodule
-
 
 //subtractor
 module subt#(parameter n = 1)(input [n-1:0] x, y, output [n-1:0] diff);
-        wire carry;
-        wire [n-1:0]ytwos;
-        twoscomp #(n) tc(y,ytwos);
-        full_adder #(n) adder(x, ytwos,diff,carry);
+    wire carry;
+    wire [n-1:0]ytwos;
+    twoscomp #(n) tc(y,ytwos);
+    full_adder #(n) adder(x, ytwos,diff,carry);
 endmodule
 
 module add_str(input x, y, cin, output s, cout);
@@ -31,7 +30,8 @@ module add_str(input x, y, cin, output s, cout);
     or(cout, c1, c2, c3);
 endmodule
 
-module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum, output carry);
+module full_adder#(parameter n = 1)(input [n-1:0] a, b, output [n-1:0] sum,
+output carry);
     wire [n:0]cin;
     assign cin[0]= 1'b0;
     genvar i;
@@ -75,15 +75,6 @@ input [n - 1:0] A, B, input sel);
     and_str #(n) and1(s1, A, {n{inv_sel}});
     and_str #(n) and2(s2, B, {n{sel}});
     or_str #(n) or1(out, s1, s2);
-endmodule
-
-module unsigned_add_str();
-endmodule
-
-module signed_add_str();
-endmodule
-
-module complement_str();
 endmodule
 
 //------------------------------------------------------------------------------
@@ -133,16 +124,16 @@ module hazard(output stall, input [3:0] opcode, input clk);
     always @(posedge clk) begin
         if (state == 0) begin
             case (opcode)
-                4'hE: state <= 2'b10;
                 4'h2: state <= 2'b10;
                 4'h6: state <= 2'b10;
                 4'h0: state <= 2'b10;
                 4'h1: state <= 2'b10;
                 4'h7: state <= 2'b10;
                 4'h8: state <= 2'b10;
+                4'hE: state <= 2'b10;
                 default: state <= 2'b00;
             endcase
-        end else if (clk) begin
+        end else begin
             case (state)
                 2'b01: state <= 2'b00;
                 2'b10: state <= 2'b01;
@@ -184,7 +175,7 @@ MemRead, MemtoReg, MemWrite, RegDst, RegWrite, input [3:0] opcode);
     always @(opcode) begin
         case (opcode)
             4'h2: begin
-                ALUControl <= 3'b001;
+                ALUControl <= 3'b000;
                 ALUSrc <= 0;
                 Branch <= 0;
                 MemRead <= 0;
@@ -340,34 +331,33 @@ endmodule
 
 module alu(output reg [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     input [15:0] X, Y, input [3:0] opcode);
-    reg signed [15:0] signed_X;
-    reg signed [15:0] signed_Y;
+    wire [15:0] add_result;
+    wire [15:0] sub_result;
+    wire [15:0] and_result;
+    wire [15:0] or_result;
+    wire [15:0] slt_result;
+
+    full_adder #(16) alu_full_adder(X, Y, add_result, Cout);
+    subt #(16) alu_subt(X, Y, sub_result);
+    and_str #(16) alu_and(and_result, X, Y);
+    or_str #(16) alu_or(or_result, X, Y);
+    nslt #(16) alu_slt(X, Y, slt_result);
+
     assign lt = X < Y;
     assign eq = X == Y;
     assign gt = X > Y;
     assign Cin = 0;
-    assign Cout = 0;
     assign V = 0;
     assign zero = (out == 0) ? 1 : 0;
     always @(*) begin
         case (opcode)
-            3'b000: // unsigned addition
-                out <= X + Y;
-            3'b001: begin // signed addition/subtraction
-                signed_X = X;
-                signed_Y = Y;
-                out <= signed_X + signed_Y;
-            end
-            3'b010: // "and"
-                out <= X & Y;
-            3'b011: // "or"
-                out <= X | Y;
-            3'b100: // set on less than
-                out <= (X < Y) ? 1 : 0;
-            3'b101: // branch if not equal
-                out <= X - Y;
-            default:
-                out <= 0;
+            3'b000: out <= add_result; // unsigned addition
+            3'b001: out <= sub_result; // signed addition/subtraction
+            3'b010: out <= and_result; // "and"
+            3'b011: out <= or_result; // "or"
+            3'b100: out <= slt_result; // set on less than
+            3'b101: out <= sub_result; // branch if not equal
+            default: out <= 0;
         endcase
     end
 endmodule
@@ -488,13 +478,15 @@ module MIPS(output [15:0] R1, R2, R3, output [5:0] PC, input clk);
     // IF
         PC if_PC(if_pc, if_muxtopc2, clk);
 
-        mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, mem_branch_addr, mem_PCSrc);
+        mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, mem_branch_addr,
+            mem_PCSrc);
         add_PC if_add_PC(if_pc_next, if_pc);
         memory if_memory(mem_temp, mem_data_out, if_inst, mem_data2_out,
             mem_alu_out, if_pc, mem_MemRead, mem_MemWrite);
         hazard if_hazard(if_stall, if_inst[15:12], clk);
         mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall);
-        mux_str #(16) if_mux3(if_inst_mux, if_inst, 16'hDDDD, if_stall | mem_PCSrc);
+        mux_str #(16) if_mux3(if_inst_mux, if_inst, 16'hDDDD,
+            if_stall | mem_PCSrc);
 
     // ID
         IF_ID if_id(id_inst, id_pc, if_inst_mux, if_pc, clk);
