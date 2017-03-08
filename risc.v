@@ -88,14 +88,6 @@ input [n - 1:0] A, B, input sel);
     or_str #(n) or1(out, s1, s2);
 endmodule
 
-module mux4_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B,
-C, D, input [1:0] sel);
-    wire [n - 1:0] w1, w2;
-    mux_str #(n) mux1(w1, A, B, sel[0]);
-    mux_str #(n) mux2(w2, C, D, sel[0]);
-    mux_str #(n) mux3(out, w1, w2, sel[1]);
-endmodule
-
 module mux8_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B,
 C, D, E, F, G, H, input [2:0] sel);
     wire [n - 1:0] w1, w2, w3, w4, w5, w6;
@@ -119,10 +111,11 @@ module PC(output reg [5:0] out, input [5:0] in, input clk);
 endmodule
 
 module add_PC (output [5:0] out, input [5:0] A);
-    assign out = A + 1;
+    wire Cout, V;
+    full_adder #(6) alu_full_adder(A, 6'b000001, 1'b0, out, Cout, V);
 endmodule
 
-module memory(output [15:0] data_out, input [15:0] Wdata,
+module memory(output [15:0] data_out, input [15:0] data_in,
 input [5:0] data_addr, input read, load, stall);
     reg [15:0] inst_mem [0:63];
     reg [15:0] data_mem [0:15];
@@ -138,7 +131,7 @@ input [5:0] data_addr, input read, load, stall);
     assign data_out = (read) ? data_mem[data_addr] : inst_mem[data_addr];
     always @(*)
         if (load & stall)
-            data_mem[data_addr] <= Wdata;
+            data_mem[data_addr] <= data_in;
 endmodule
 
 // TODO: stall condition checking
@@ -389,17 +382,6 @@ module alu(output [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     assign gt = X > Y;
     assign Cin = 0;
     assign zero = (out == 0) ? 1 : 0;
-    // always @(*) begin
-    //     case (opcode)
-    //         3'b000: out <= add_result; // unsigned addition
-    //         3'b001: out <= sub_result; // signed addition/subtraction
-    //         3'b010: out <= and_result; // "and"
-    //         3'b011: out <= or_result; // "or"
-    //         3'b100: out <= slt_result; // set on less than
-    //         3'b101: out <= sub_result; // branch if not equal
-    //         default: out <= 0;
-    //     endcase
-    // end
 endmodule
 
 //------------------------------------------------------------------------------
