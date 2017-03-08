@@ -102,7 +102,7 @@ C, D, E, F, G, H, input [2:0] sel);
     mux_str #(n) mux3(w5, w1, w2, sel[1]);
     mux_str #(n) mux4(w3, E, F, sel[0]);
     mux_str #(n) mux5(w4, G, H, sel[0]);
-    mux_str #(n) mux6(w6, w1, w2, sel[1]);
+    mux_str #(n) mux6(w6, w3, w4, sel[1]);
     mux_str #(n) mux7(out, w5, w6, sel[2]);
 endmodule
 
@@ -337,7 +337,7 @@ input [3:0] Aaddr, Baddr, Caddr, input load, clear, clk);
     assign reg3 = register[3];
     initial for (i = 0; i < 16; i = i + 1)
         register[i] <= 0;
-    always @(posedge clk) begin
+    always @(*) begin
         if (!clear)
             for (i = 0; i < 16; i = i + 1)
                 register[i] <= 0;
@@ -400,7 +400,7 @@ id_MemWrite, id_RegDst, id_RegWrite, input clk);
 endmodule
 
 module alu(output [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
-    input [15:0] X, Y, input [2:0] opcode);
+input [15:0] X, Y, input [2:0] opcode);
     wire [15:0] add_result;
     wire [15:0] sub_result;
     wire [15:0] and_result;
@@ -415,7 +415,7 @@ module alu(output [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     mux8_str #(16) mux(out, add_result, sub_result, and_result, or_result,
         slt_result, sub_result, 16'h0000, 16'h0000, opcode);
 
-     checkzero #(16) cz(zero, sub_result);
+    checkzero #(16) cz(zero, sub_result);
 
     assign lt = slt_result[0];
     assign eq = zero;
