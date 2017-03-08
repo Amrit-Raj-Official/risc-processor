@@ -13,13 +13,19 @@ module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
     assign r3 = sum[n-1];
 endmodule
 
-/* Subtractor, no longer needed
-module subt#(parameter n = 1)(input [n-1:0] x, y, output [n-1:0] diff,output V);
-        wire carry;
-        wire [n-1:0]ytwos;
-        twoscomp #(n) tc(y,ytwos);
-        full_adder #(n) adder(x, ytwos,diff,carry,V);
-endmodule*/
+module checkzero #(parameter n=1)(output zero, input [n-1:0] A);
+    
+    wire[n-2:0] res;
+    nor(res[0], A[0],A[1]);
+    genvar i;
+    generate
+        for (i = 2; i<n;i=i+1)
+        begin
+            nor(res[i-1],res[i-2],A[i]);    
+        end
+    endgenerate
+    assign zero=res[n-2];
+endmodule
 
 module add_str(input x, y, cin, output s, cout);
     wire s1,c1,c2,c3;
@@ -377,11 +383,16 @@ module alu(output [15:0] out, output Cin, Cout, lt, eq, gt, V, zero,
     mux8_str #(16) mux(out, add_result, sub_result, and_result, or_result,
         slt_result, sub_result, 16'h0000, 16'h0000, opcode);
 
-    assign lt = X < Y;
-    assign eq = X == Y;
-    assign gt = X > Y;
+     checkzero #(16) cz(zero, sub_result);
+
+    assign lt = slt_result[0];
+    assign eq = zero;
+    wire ltinverted;
+    not(ltinverted,lt);
+    wire notzero;
+    not(notzero,zero);
+    and(gt,notzero,ltinverted);
     assign Cin = 0;
-    assign zero = (out == 0) ? 1 : 0;
 endmodule
 
 //------------------------------------------------------------------------------
