@@ -4,25 +4,23 @@
 
 // Structural modules
 
-module nslt#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
-    wire[n-1:0] sum;
+module nslt #(parameter n = 1) (input [n - 1:0] x, y, output [n - 1:0] r3);
+    wire [n - 1:0] sum;
     wire carry;
     wire V;
-    full_adder #(n) subtrac(x,y,1'b1,sum,carry,V);
-    assign r3 = sum[n-1];
+    full_adder #(n) subtrac(x, y, 1'b1, sum, carry, V);
+    assign r3 = sum[n - 1];
 endmodule
 
-module checkzero #(parameter n=1)(output zero, input [n-1:0] A);
-    wire[n-2:0] res;
-    nor(res[0], A[0],A[1]);
+module checkzero #(parameter n = 1) (output zero, input [n - 1:0] A);
+    wire [n - 2:0] res;
+    nor(res[0], A[0], A[1]);
     genvar i;
     generate
-        for (i = 2; i<n;i=i+1)
-        begin
-            nor(res[i-1],res[i-2],A[i]);
-        end
+        for (i = 2; i < n; i = i + 1)
+            nor(res[i - 1], res[i - 2], A[i]);
     endgenerate
-    assign zero=res[n-2];
+    assign zero = res[n - 2];
 endmodule
 
 module add_str(input x, y, cin, output s, cout);
@@ -35,31 +33,26 @@ module add_str(input x, y, cin, output s, cout);
     or(cout, c1, c2, c3);
 endmodule
 
-module not_str #(parameter n =1 )(output [n-1:0] out, input [n-1:0] A);
-    not not1[n-1:0](out,A);
-endmodule
-
-module full_adder#(parameter n = 1)(input [n-1:0] a, input [n-1:0] b, input carryin, output [n-1:0] sum, output carry, V);
-    wire [n:0]cin;
-    wire[n-1:0] b2;
-    wire [n-1:0]invertb;
+module full_adder #(parameter n = 1) (input [n - 1:0] a, input [n - 1:0] b,
+input carryin, output [n - 1:0] sum, output carry, V);
+    wire [n:0] cin;
+    wire [n - 1:0] b2;
+    wire [n - 1:0] invertb;
     not_str #(n) n1(invertb, b);
     mux_str #(n) mux1(b2, b, invertb, carryin);
-    assign cin[0]= carryin;
+    assign cin[0] = carryin;
     genvar i;
     generate
-        for (i = 0; i<n;i=i+1)
-        begin
-            add_str fa(a[i],b2[i],cin[i],sum[i],cin[i+1]);
-        end
+        for (i = 0; i < n; i = i + 1)
+            add_str fa(a[i], b2[i], cin[i], sum[i], cin[i + 1]);
     endgenerate
     wire cin_invert;
     not(cin_invert, cin[n]);
-    mux_str #(1) mux2(carry, cin[n],cin_invert,carryin);
-    xor(V, cin[n], cin[n-1]);
+    mux_str #(1) mux2(carry, cin[n], cin_invert, carryin);
+    xor(V, cin[n], cin[n - 1]);
 endmodule
 
-module twoscomp#(parameter n = 1)(input [n-1:0]x, output [n-1:0]y);
+module twoscomp#(parameter n = 1) (input [n - 1:0] x, output [n - 1:0] y);
     wire [n-1:0] ones;
     wire [n-1:0] one;
     wire [n-1:0] inverted;
@@ -79,6 +72,10 @@ endmodule
 
 module xor_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A, B);
     xor xor1[n - 1:0](out, A, B);
+endmodule
+
+module not_str #(parameter n = 1) (output [n - 1:0] out, input [n - 1:0] A);
+    not not1[n - 1:0](out,A);
 endmodule
 
 module mux_str #(parameter n = 1) (output [n - 1:0] out,
@@ -129,22 +126,21 @@ input [5:0] data_addr, input read, load, stall);
             inst_mem[i] = 16'hFFFF;
         for (i = 0; i < 16; i = i + 1)
             data_mem[i] = 16'h0000;
-        // inst_mem[0] = 16'h8011;
-        // inst_mem[1] = 16'h8022;
-        // inst_mem[2] = 16'h8033;
-        // inst_mem[3] = 16'h8044;
-        // inst_mem[4] = 16'h7245;
-        // inst_mem[5] = 16'hE055;
-        // inst_mem[6] = 16'h6242;
-        // inst_mem[7] = 16'h2133;
-        // inst_mem[8] = 16'hE02E;
-        // data_mem[0] = 16'h0000;
-        // data_mem[1] = 16'h0005;
-        // data_mem[2] = 16'h0005;
-        // data_mem[3] = 16'h0000;
-        // data_mem[4] = 16'h0001;
-        $readmemh("inst.dat", inst_mem);
-        $readmemh("mem.dat", data_mem);
+        inst_mem[0] = 16'h8011;
+        inst_mem[1] = 16'h8022;
+        inst_mem[2] = 16'h8030;
+        inst_mem[3] = 16'h8043;
+        inst_mem[4] = 16'h7245;
+        inst_mem[5] = 16'hE055;
+        inst_mem[6] = 16'h6242;
+        inst_mem[7] = 16'h2133;
+        inst_mem[8] = 16'hE02E;
+        data_mem[0] = 16'h0000;
+        data_mem[1] = 16'h0005;
+        data_mem[2] = 16'h0005;
+        data_mem[3] = 16'h0001;
+        // $readmemh("inst.dat", inst_mem);
+        // $readmemh("mem.dat", data_mem);
     end
     assign data_out = (read) ? data_mem[data_addr] : inst_mem[data_addr];
     always @(*)
@@ -152,7 +148,6 @@ input [5:0] data_addr, input read, load, stall);
             data_mem[data_addr] <= data_in;
 endmodule
 
-// todo: condition checking
 module hazard(output stall1, output reg stall2, input [15:0] if_inst,
 input clk);
     reg [1:0] state;
@@ -165,10 +160,10 @@ input clk);
         if (state == 0) begin
             stall2 <= 0;
             case (if_inst[15:12])
-                4'h2: state <= 2'b10;
-                4'h6: state <= 2'b10;
-                4'h0: state <= 2'b10;
-                4'h1: state <= 2'b10;
+                4'h2: state <= 2'b01;
+                4'h6: state <= 2'b01;
+                4'h0: state <= 2'b01;
+                4'h1: state <= 2'b01;
                 4'h7: state <= 2'b10;
                 4'h8: state <= 2'b10;
                 4'hA: state <= 2'b10;
@@ -356,7 +351,6 @@ input [3:0] Aaddr, Baddr, Caddr, input load, clk);
             register[Caddr] <= C;
 endmodule
 
-// TODO: get rid of regdst
 module ID(output [15:0] id_reg1, id_reg2, id_reg3, id_data1_out, id_data2_out,
 output[3:0] id_write_addr, output [2:0] id_ALUControl, output id_ALUSrc,
 id_Branch, id_MemRead, id_MemtoReg, id_MemWrite, id_RegDst, id_RegWrite,
@@ -434,9 +428,9 @@ input [15:0] X, Y, input [2:0] opcode);
         slt_result, sub_result, 16'h0000, 16'h0000, opcode);
     assign lt = slt_result[0];
     assign eq = zero;
-    not(ltinverted,lt);
-    not(notzero,zero);
-    and(gt,notzero,ltinverted);
+    not(ltinverted, lt);
+    not(notzero, zero);
+    and(gt, notzero, ltinverted);
     assign Cin = 0;
 endmodule
 
@@ -585,8 +579,8 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
             mem_MemtoReg, mem_MemWrite, mem_RegWrite, ex_alu_out, ex_data2_out,
             ex_branch_addr, ex_write_addr, ex_alu_zero, ex_Branch, ex_MemRead,
             ex_MemtoReg, ex_MemWrite, ex_RegWrite, clk);
-    // MEM
 
+    // MEM
         and_str #(1) mem_and(mem_PCSrc, mem_Branch, ~mem_alu_zero);
         MEM_WB mem_wb(wb_data, wb_alu_out, wb_write_addr, wb_MemtoReg,
             wb_RegWrite, if_data, ex_alu_out, ex_write_addr, ex_MemtoReg,
