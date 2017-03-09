@@ -142,9 +142,10 @@ input [5:0] data_addr, input read, load, stall);
         // $readmemh("inst.dat", inst_mem);
         // $readmemh("mem.dat", data_mem);
     end
-    assign data_out = (read) ? data_mem[data_addr] : inst_mem[data_addr];
+    assign data_out = (read && stall) ? data_mem[data_addr] :
+        inst_mem[data_addr];
     always @(*)
-        if (load & stall)
+        if (load && stall)
             data_mem[data_addr] <= data_in;
 endmodule
 
@@ -189,7 +190,7 @@ endmodule
 
 module IF(output [15:0] if_inst, if_data, output [5:0] if_pc,
 input [15:0] ex_alu_out, ex_data2_out, input [5:0] wb_branch_addr,
-input wb_PCSrc, clk);
+input ex_MemRead, ex_MemWrite, wb_PCSrc, clk);
     wire [5:0] if_muxtopc1;
     wire [5:0] if_muxtopc2;
     wire [5:0] if_pc_next;
@@ -199,7 +200,7 @@ input wb_PCSrc, clk);
     PC if_PC(if_pc, if_muxtopc2, clk);
     mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, wb_branch_addr, wb_PCSrc);
     add_PC if_add_PC(if_pc_next, if_pc);
-    memory if_memory(if_data, ex_data2_out, if_mem_addr, if_stall2,
+    memory if_memory(if_data, ex_data2_out, if_mem_addr, ex_MemRead,
         ex_MemWrite, if_stall2);
     hazard if_hazard(if_stall1, if_stall2, if_inst, clk);
     mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall1);
@@ -538,7 +539,7 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
 
     // IF
         IF IF(if_inst, if_data, if_pc, ex_alu_out, ex_data2_out,
-            wb_branch_addr, wb_PCSrc, clk);
+            wb_branch_addr, ex_MemRead, ex_MemWrite, wb_PCSrc, clk);
         IF_ID if_id(id_inst, id_pc, if_inst, if_pc, clk);
 
     // ID
