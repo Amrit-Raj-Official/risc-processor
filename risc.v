@@ -188,8 +188,8 @@ input clk);
 endmodule
 
 module IF(output [15:0] if_inst, if_data, output [5:0] if_pc,
-input [15:0] ex_alu_out, ex_data2_out, input [5:0] mem_branch_addr,
-input mem_PCSrc, clk);
+input [15:0] ex_alu_out, ex_data2_out, input [5:0] wb_branch_addr,
+input wb_PCSrc, clk);
     wire [5:0] if_muxtopc1;
     wire [5:0] if_muxtopc2;
     wire [5:0] if_pc_next;
@@ -197,28 +197,26 @@ input mem_PCSrc, clk);
     wire if_stall1;
     wire if_stall2;
     PC if_PC(if_pc, if_muxtopc2, clk);
-    mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, mem_branch_addr, mem_PCSrc);
+    mux_str #(6) if_mux1(if_muxtopc1, if_pc_next, wb_branch_addr, wb_PCSrc);
     add_PC if_add_PC(if_pc_next, if_pc);
     memory if_memory(if_data, ex_data2_out, if_mem_addr, if_stall2,
         ex_MemWrite, if_stall2);
     hazard if_hazard(if_stall1, if_stall2, if_inst, clk);
     mux_str #(6) if_mux2(if_muxtopc2, if_muxtopc1, if_pc, if_stall1);
     mux_str #(16) if_mux3(if_inst, if_data, 16'hDDDD,
-        if_stall1 | mem_PCSrc);
+        if_stall1 | wb_PCSrc);
     mux_str #(6) if_mux4(if_mem_addr, if_pc, {2'b00, ex_alu_out[3:0]},
         if_stall2);
 endmodule
 
-module IF_ID(output reg [15:0] id_inst, id_data, output reg [5:0] id_pc,
-input [15:0] if_inst, if_data, input [5:0] if_pc, input clk);
+module IF_ID(output reg [15:0] id_inst, output reg [5:0] id_pc,
+input [15:0] if_inst, input [5:0] if_pc, input clk);
     initial begin
         id_inst = 16'hFFFF;
-        id_data = 16'hFFFF;
         id_pc = 0;
     end
     always @(posedge clk) begin
         id_inst <= if_inst;
-        id_data <= if_data;
         id_pc <= if_pc;
     end
 endmodule
@@ -448,60 +446,44 @@ input [5:0] ex_pc, input [2:0] ex_ALUControl, input ex_ALUSrc, ex_RegDst);
         ex_ALUControl);
 endmodule
 
-module EX_MEM(output reg [15:0] mem_alu_out, mem_data2_out,
-output reg [5:0] mem_branch_addr, output reg [3:0] mem_write_addr,
-output reg mem_alu_zero, mem_Branch, mem_MemRead, mem_MemtoReg, mem_MemWrite,
-mem_RegWrite, input [15:0] ex_alu_out, ex_data2_out,
-input [5:0] ex_branch_addr, input [3:0] ex_write_addr, input ex_alu_zero,
-ex_Branch, ex_MemRead, ex_MemtoReg, ex_MemWrite, ex_RegWrite, clk);
+module EX_WB(output reg [15:0] wb_data, wb_alu_out,
+output reg [5:0] wb_branch_addr, output reg [3:0] wb_write_addr,
+output reg wb_alu_zero, wb_Branch, wb_MemtoReg, wb_RegWrite,
+input [15:0] if_data, ex_alu_out, input [5:0] ex_branch_addr,
+input [3:0] ex_write_addr, input ex_alu_zero, ex_Branch, ex_MemtoReg,
+ex_RegWrite, clk);
     initial begin
-        mem_alu_out <= 0;
-        mem_data2_out <= 0;
-        mem_branch_addr <= 0;
-        mem_write_addr <= 0;
-        mem_alu_zero <= 0;
-        mem_Branch <= 0;
-        mem_MemRead <= 0;
-        mem_MemtoReg <= 0;
-        mem_MemWrite <= 0;
-        mem_RegWrite <= 0;
+        wb_data <= 0;
+        wb_alu_out <= 0;
+        wb_branch_addr <= 0;
+        wb_write_addr <= 0;
+        wb_alu_zero <= 0;
+        wb_Branch <= 0;
+        wb_MemtoReg <= 0;
+        wb_RegWrite <= 0;
     end
     always @(posedge clk) begin
-        mem_alu_out <= ex_alu_out;
-        mem_data2_out <= ex_data2_out;
-        mem_branch_addr <= ex_branch_addr;
-        mem_write_addr <= ex_write_addr;
-        mem_alu_zero <= ex_alu_zero;
-        mem_Branch <= ex_Branch;
-        mem_MemRead <= ex_MemRead;
-        mem_MemtoReg <= ex_MemtoReg;
-        mem_MemWrite <= ex_MemWrite;
-        mem_RegWrite <= ex_RegWrite;
+        wb_data <= if_data;
+        wb_alu_out <= ex_alu_out;
+        wb_branch_addr <= ex_branch_addr;
+        wb_write_addr <= ex_write_addr;
+        wb_alu_zero <= ex_alu_zero;
+        wb_Branch <= ex_Branch;
+        wb_MemtoReg <= ex_MemtoReg;
+        wb_RegWrite <= ex_RegWrite;
     end
 endmodule
 
 //------------------------------------------------------------------------------
 
-// MEM: Memory Access
+// WB: Write Back
 
-module MEM_WB(output reg [15:0] wb_data, wb_alu_out,
-output reg [3:0] wb_write_addr, output reg wb_MemtoReg, wb_RegWrite,
-input [15:0] id_data, mem_alu_out, input [3:0] mem_write_addr,
-input mem_MemtoReg, mem_RegWrite, clk);
-    initial begin
-        wb_data <= 0;
-        wb_alu_out <= 0;
-        wb_write_addr <= 0;
-        wb_MemtoReg <= 0;
-        wb_RegWrite <= 0;
-    end
-    always @(posedge clk) begin
-        wb_data <= id_data;
-        wb_alu_out <= mem_alu_out;
-        wb_write_addr <= mem_write_addr;
-        wb_MemtoReg <= mem_MemtoReg;
-        wb_RegWrite <= mem_RegWrite;
-    end
+module WB(output [15:0] wb_write_data, output wb_PCSrc,
+input [15:0] wb_alu_out, wb_data, input wb_alu_zero, wb_Branch, wb_MemtoReg);
+    wire wb_notzero;
+    not_str #(1) wb_not(wb_notzero, wb_alu_zero);
+    and_str #(1) wb_and(wb_PCSrc, wb_Branch, wb_notzero);
+    mux_str #(16) wb_mux(wb_write_data, wb_alu_out, wb_data, wb_MemtoReg);
 endmodule
 
 //------------------------------------------------------------------------------
@@ -512,30 +494,31 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
     wire [15:0] temp;
 
     wire [15:0] if_inst, id_inst, ex_inst;
-    wire [15:0] if_data, id_data, wb_data;
+    wire [15:0] if_data, wb_data;
     wire [5:0] if_pc, id_pc, ex_pc;
 
     wire [15:0] id_reg1;
     wire [15:0] id_reg2;
     wire [15:0] id_reg3;
     wire [15:0] id_data1_out, ex_data1_out;
-    wire [15:0] id_data2_out, ex_data2_out, mem_data2_out;
-    wire [3:0] id_write_addr, ex_write_addr, mem_write_addr, wb_write_addr;
+    wire [15:0] id_data2_out, ex_data2_out;
+    wire [3:0] id_write_addr, ex_write_addr, wb_write_addr;
 
-    wire [15:0] ex_alu_out, mem_alu_out, wb_alu_out;
-    wire [5:0] ex_branch_addr, mem_branch_addr;
+    wire [15:0] ex_alu_out, wb_alu_out;
+    wire [5:0] ex_branch_addr, wb_branch_addr;
 
     wire [15:0] wb_write_data;
+    wire wb_notzero;
 
     wire [2:0] id_ALUControl, ex_ALUControl;
     wire id_ALUSrc, ex_ALUSrc;
-    wire id_Branch, ex_Branch, mem_Branch;
-    wire id_MemRead, ex_MemRead, mem_MemRead;
-    wire id_MemtoReg, ex_MemtoReg, mem_MemtoReg, wb_MemtoReg;
-    wire id_MemWrite, ex_MemWrite, mem_MemWrite;
+    wire id_Branch, ex_Branch, wb_Branch;
+    wire id_MemRead, ex_MemRead;
+    wire id_MemtoReg, ex_MemtoReg, wb_MemtoReg;
+    wire id_MemWrite, ex_MemWrite;
     wire id_RegDst, ex_RegDst;
-    wire id_RegWrite, ex_RegWrite, mem_RegWrite, wb_RegWrite;
-    wire mem_PCSrc;
+    wire id_RegWrite, ex_RegWrite, wb_RegWrite;
+    wire wb_PCSrc;
 
     wire ex_alu_cin;
     wire ex_alu_cout;
@@ -543,7 +526,7 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
     wire ex_alu_eq;
     wire ex_alu_gt;
     wire ex_alu_v;
-    wire ex_alu_zero, mem_alu_zero;
+    wire ex_alu_zero, wb_alu_zero;
     wire reg_clear;
     wire carry;
     wire v;
@@ -555,14 +538,14 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
 
     // IF
         IF IF(if_inst, if_data, if_pc, ex_alu_out, ex_data2_out,
-            mem_branch_addr, mem_PCSrc, clk);
-        IF_ID if_id(id_inst, id_data, id_pc, if_inst, if_data, if_pc, clk);
+            wb_branch_addr, wb_PCSrc, clk);
+        IF_ID if_id(id_inst, id_pc, if_inst, if_pc, clk);
 
     // ID
         ID ID(id_reg1, id_reg2, id_reg3, id_data1_out, id_data2_out,
             id_write_addr, id_ALUControl, id_ALUSrc, id_Branch, id_MemRead,
             id_MemtoReg, id_MemWrite, id_RegDst, id_RegWrite, id_inst,
-            wb_write_data, mem_write_addr, mem_RegWrite, clk);
+            wb_write_data, wb_write_addr, wb_RegWrite, clk);
         ID_EX id_ex(ex_inst, ex_data1_out, ex_data2_out, ex_pc, ex_write_addr,
             ex_ALUControl, ex_ALUSrc, ex_Branch, ex_MemRead, ex_MemtoReg,
             ex_MemWrite, ex_RegDst, ex_RegWrite, id_inst, id_data1_out,
@@ -574,20 +557,14 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
         EX EX(ex_alu_out, ex_branch_addr, ex_alu_cin, ex_alu_cout, ex_alu_lt,
             ex_alu_eq, ex_alu_gt, ex_alu_v, ex_alu_zero, ex_inst, ex_data1_out,
             ex_data2_out, ex_pc, ex_ALUControl, ex_ALUSrc, ex_RegDst);
-        EX_MEM ex_mem(mem_alu_out, mem_data2_out, mem_branch_addr,
-            mem_write_addr, mem_alu_zero, mem_Branch, mem_MemRead,
-            mem_MemtoReg, mem_MemWrite, mem_RegWrite, ex_alu_out, ex_data2_out,
-            ex_branch_addr, ex_write_addr, ex_alu_zero, ex_Branch, ex_MemRead,
-            ex_MemtoReg, ex_MemWrite, ex_RegWrite, clk);
-
-    // MEM
-        and_str #(1) mem_and(mem_PCSrc, mem_Branch, ~mem_alu_zero);
-        MEM_WB mem_wb(wb_data, wb_alu_out, wb_write_addr, wb_MemtoReg,
-            wb_RegWrite, if_data, ex_alu_out, ex_write_addr, ex_MemtoReg,
-            ex_RegWrite, clk);
+        EX_WB ex_wb(wb_data, wb_alu_out, wb_branch_addr, wb_write_addr,
+            wb_alu_zero, wb_Branch, wb_MemtoReg, wb_RegWrite, if_data,
+            ex_alu_out, ex_branch_addr, ex_write_addr, ex_alu_zero, ex_Branch,
+            ex_MemtoReg, ex_RegWrite, clk);
 
     // WB
-        mux_str #(16) wb_mux(wb_write_data, wb_alu_out, wb_data, wb_MemtoReg);
+        WB WB(wb_write_data, wb_PCSrc, wb_alu_out, wb_data, wb_alu_zero,
+            wb_Branch, wb_MemtoReg);
 
 endmodule
 
