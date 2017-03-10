@@ -30,19 +30,19 @@ module ncomp#(parameter n=1)(input [n-1:0]A,B,output lt,eq,gt);
         generate
             for (i = 1; i<n;i=i+1)
             begin
-               comp comp1(A[i], B[i], ltold[i-1],eqold[i-1],gtold[i-1],ltold[i],eqold[i],gtold[i]); 
+               comp comp1(A[i], B[i], ltold[i-1],eqold[i-1],gtold[i-1],ltold[i],eqold[i],gtold[i]);
             end
         endgenerate
         assign lt = ltold[n-1];
         assign eq = eqold[n-1];
         assign gt = gtold[n-1];
-                        
+
 endmodule
 //slt unsigned
 module nsltu#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
 wire lt, eq, gt;
 ncomp #(n) ncomp1(x, y,lt,eq,gt);
-assign r3[0] = lt; 
+assign r3 = lt;
 endmodule
 
 module nslt #(parameter n = 1) (input [n - 1:0] x, y, output [n - 1:0] r3);
@@ -171,8 +171,8 @@ input [5:0] data_addr, input read, load, stall);
         inst_mem[1] = 16'h8022;
         inst_mem[2] = 16'h8030;
         inst_mem[3] = 16'h8043;
-        inst_mem[4] = 16'h7245;
-        inst_mem[5] = 16'hE055;
+        inst_mem[4] = 16'hE022;
+        inst_mem[5] = 16'hE044;
         inst_mem[6] = 16'h6242;
         inst_mem[7] = 16'h2133;
         inst_mem[8] = 16'hE02E;
@@ -463,7 +463,7 @@ input [15:0] X, Y, input [2:0] opcode);
     and_str #(16) alu_and(and_result, X, Y);
     or_str #(16) alu_or(or_result, X, Y);
     nslt #(16) alu_slt(X, Y, slt_result);
-    checkzero #(16) cz(zero, sub_result);
+    checkzero #(16) cz(zero, out);
     mux8_str #(16) mux(out, add_result, sub_result, and_result, or_result,
         slt_result, sub_result, 16'h0000, 16'h0000, opcode);
     assign lt = slt_result[0];
@@ -533,8 +533,6 @@ endmodule
 // Top level:
 
 module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
-    wire [15:0] temp;
-
     wire [15:0] if_inst, id_inst, ex_inst;
     wire [15:0] if_data, wb_data;
     wire [5:0] if_pc, id_pc, ex_pc;
@@ -550,7 +548,7 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
     wire [5:0] ex_branch_addr, wb_branch_addr;
 
     wire [15:0] wb_write_data;
-    wire wb_notzero;
+    wire wb_PCSrc;
 
     wire [2:0] id_ALUControl, ex_ALUControl;
     wire id_ALUSrc, ex_ALUSrc;
@@ -560,7 +558,6 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
     wire id_MemWrite, ex_MemWrite;
     wire id_RegDst, ex_RegDst;
     wire id_RegWrite, ex_RegWrite, wb_RegWrite;
-    wire wb_PCSrc;
 
     wire ex_alu_cin;
     wire ex_alu_cout;
@@ -569,9 +566,6 @@ module MIPS(input clk, output [5:0] PC, output [15:0] R1, R2, R3);
     wire ex_alu_gt;
     wire ex_alu_v;
     wire ex_alu_zero, wb_alu_zero;
-    wire reg_clear;
-    wire carry;
-    wire v;
 
     assign R1 = id_reg1;
     assign R2 = id_reg2;
