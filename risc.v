@@ -4,46 +4,46 @@
 
 // Structural modules
 
-module comp(input A, B, ltin, eqin, gtin, output lt, eq, gt);
-wire nota, notb;
-not(nota, A);
-not(notb, B);
-wire lt1, gt1, eq1;
-
-wire lt2, gt2;
-and(lt1, nota, B);
-and(gt1, notb,A);
-nor(eq1,lt1,gt1);
-
-and(lt2, ltin, eq1);
-and(gt2, gtin, eq1);
-
-or(lt, lt2, lt1);
-or(gt, gt2, gt1);
-and(eq, eqin, eq1);
-endmodule
-
-module ncomp#(parameter n=1)(input [n-1:0]A,B,output lt,eq,gt);
-    wire [n-1:0] ltold, eqold, gtold;
-    comp comp0(A[0], B[0], 1'b0,1'b1,1'b0,ltold[0],eqold[0],gtold[0]);
-    genvar i;
-        generate
-            for (i = 1; i<n;i=i+1)
-            begin
-               comp comp1(A[i], B[i], ltold[i-1],eqold[i-1],gtold[i-1],ltold[i],eqold[i],gtold[i]);
-            end
-        endgenerate
-        assign lt = ltold[n-1];
-        assign eq = eqold[n-1];
-        assign gt = gtold[n-1];
-
-endmodule
-//slt unsigned
-module nsltu#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
-wire lt, eq, gt;
-ncomp #(n) ncomp1(x, y,lt,eq,gt);
-assign r3 = lt;
-endmodule
+// module comp(input A, B, ltin, eqin, gtin, output lt, eq, gt);
+// wire nota, notb;
+// not(nota, A);
+// not(notb, B);
+// wire lt1, gt1, eq1;
+//
+// wire lt2, gt2;
+// and(lt1, nota, B);
+// and(gt1, notb,A);
+// nor(eq1,lt1,gt1);
+//
+// and(lt2, ltin, eq1);
+// and(gt2, gtin, eq1);
+//
+// or(lt, lt2, lt1);
+// or(gt, gt2, gt1);
+// and(eq, eqin, eq1);
+// endmodule
+//
+// module ncomp#(parameter n=1)(input [n-1:0]A,B,output lt,eq,gt);
+//     wire [n-1:0] ltold, eqold, gtold;
+//     comp comp0(A[0], B[0], 1'b0,1'b1,1'b0,ltold[0],eqold[0],gtold[0]);
+//     genvar i;
+//         generate
+//             for (i = 1; i<n;i=i+1)
+//             begin
+//                comp comp1(A[i], B[i], ltold[i-1],eqold[i-1],gtold[i-1],ltold[i],eqold[i],gtold[i]);
+//             end
+//         endgenerate
+//         assign lt = ltold[n-1];
+//         assign eq = eqold[n-1];
+//         assign gt = gtold[n-1];
+//
+// endmodule
+// //slt unsigned
+// module nsltu#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
+// wire lt, eq, gt;
+// ncomp #(n) ncomp1(x, y,lt,eq,gt);
+// assign r3 = lt;
+// endmodule
 
 module nslt #(parameter n = 1) (input [n - 1:0] x, y, output [n - 1:0] r3);
     wire [n - 1:0] sum;
@@ -55,13 +55,13 @@ endmodule
 
 module checkzero #(parameter n = 1) (output zero, input [n - 1:0] A);
     wire [n - 2:0] res;
-    nor(res[0], A[0], A[1]);
+    or(res[0], A[0], A[1]);
     genvar i;
     generate
         for (i = 2; i < n; i = i + 1)
-            nor(res[i - 1], res[i - 2], A[i]);
+            or(res[i - 1], res[i - 2], A[i]);
     endgenerate
-    assign zero = res[n - 2];
+    not_str #(1) not1(zero, res[n - 2]);
 endmodule
 
 module add_str(input x, y, cin, output s, cout);
@@ -468,6 +468,7 @@ input [15:0] X, Y, input [2:0] opcode);
         slt_result, sub_result, 16'h0000, 16'h0000, opcode);
     assign lt = slt_result[0];
     assign eq = zero;
+    // assign zero = out == 0;
     not(ltinverted, lt);
     not(notzero, zero);
     and(gt, notzero, ltinverted);
