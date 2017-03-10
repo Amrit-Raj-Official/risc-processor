@@ -4,47 +4,6 @@
 
 // Structural modules
 
-// module comp(input A, B, ltin, eqin, gtin, output lt, eq, gt);
-// wire nota, notb;
-// not(nota, A);
-// not(notb, B);
-// wire lt1, gt1, eq1;
-//
-// wire lt2, gt2;
-// and(lt1, nota, B);
-// and(gt1, notb,A);
-// nor(eq1,lt1,gt1);
-//
-// and(lt2, ltin, eq1);
-// and(gt2, gtin, eq1);
-//
-// or(lt, lt2, lt1);
-// or(gt, gt2, gt1);
-// and(eq, eqin, eq1);
-// endmodule
-//
-// module ncomp#(parameter n=1)(input [n-1:0]A,B,output lt,eq,gt);
-//     wire [n-1:0] ltold, eqold, gtold;
-//     comp comp0(A[0], B[0], 1'b0,1'b1,1'b0,ltold[0],eqold[0],gtold[0]);
-//     genvar i;
-//         generate
-//             for (i = 1; i<n;i=i+1)
-//             begin
-//                comp comp1(A[i], B[i], ltold[i-1],eqold[i-1],gtold[i-1],ltold[i],eqold[i],gtold[i]);
-//             end
-//         endgenerate
-//         assign lt = ltold[n-1];
-//         assign eq = eqold[n-1];
-//         assign gt = gtold[n-1];
-//
-// endmodule
-// //slt unsigned
-// module nsltu#(parameter n =1) (input [n-1:0]x, y, output [n-1:0] r3);
-// wire lt, eq, gt;
-// ncomp #(n) ncomp1(x, y,lt,eq,gt);
-// assign r3 = lt;
-// endmodule
-
 module nslt #(parameter n = 1) (input [n - 1:0] x, y, output [n - 1:0] r3);
     wire [n - 1:0] sum;
     wire carry;
@@ -65,7 +24,7 @@ module checkzero #(parameter n = 1) (output zero, input [n - 1:0] A);
 endmodule
 
 module add_str(input x, y, cin, output s, cout);
-    wire s1,c1,c2,c3;
+    wire s1, c1, c2, c3;
     xor(s1, x, y);
     xor(s, cin, s1);
     and(c1, x, y);
@@ -93,7 +52,7 @@ input carryin, output [n - 1:0] sum, output carry, V);
     xor(V, cin[n], cin[n - 1]);
 endmodule
 
-module twoscomp#(parameter n = 1) (input [n - 1:0] x, output [n - 1:0] y);
+module twoscomp #(parameter n = 1) (input [n - 1:0] x, output [n - 1:0] y);
     wire [n-1:0] ones;
     wire [n-1:0] one;
     wire [n-1:0] inverted;
@@ -180,8 +139,6 @@ input [5:0] data_addr, input read, load, stall);
         data_mem[1] = 16'h0005;
         data_mem[2] = 16'h0005;
         data_mem[3] = 16'h0001;
-        // $readmemh("inst.dat", inst_mem);
-        // $readmemh("mem.dat", data_mem);
     end
     assign data_out = (read && stall) ? data_mem[data_addr] :
         inst_mem[data_addr];
@@ -468,7 +425,6 @@ input [15:0] X, Y, input [2:0] opcode);
         slt_result, sub_result, 16'h0000, 16'h0000, opcode);
     assign lt = slt_result[0];
     assign eq = zero;
-    // assign zero = out == 0;
     not(ltinverted, lt);
     not(notzero, zero);
     and(gt, notzero, ltinverted);
